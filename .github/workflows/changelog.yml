@@ -1,0 +1,33 @@
+name: Changelog
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        run: |
+          cargo install git-cliff --locked
+
+      - name: Generate changelog
+        run: |
+          git-cliff --tag "${GITHUB_REF_NAME}" --output CHANGELOG.md
+
+      - name: Commit changelog
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs(changelog): update for ${{ github.ref_name }}"
+          file_pattern: CHANGELOG.md

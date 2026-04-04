@@ -1,0 +1,8 @@
+[bluez]
+ProfilePath=/com/bluetty/spp_profile
+Uuid=00001101-0000-1000-8000-00805f9b34fb
+Name=SPP Console
+
+[session]
+Mode=getty
+SubcommandTemplate=/sbin/agetty -8 -s -L -H {host} --login-program /bin/login {tty} xterm-256color

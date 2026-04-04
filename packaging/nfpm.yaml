@@ -1,0 +1,28 @@
+name: bluetty
+arch: ${PKG_ARCH}
+platform: linux
+version: ${VERSION}
+section: default
+priority: optional
+maintainer: xrh0905
+description: |
+  Bluetooth SPP to PTY bridge daemon for BlueZ D-Bus.
+vendor: bluetty
+homepage: https://github.com/xrh0905/bluetty
+license: MIT
+contents:
+  - src: ./dist/bluetty
+    dst: /usr/local/bin/bluetty
+    file_info:
+      mode: 0755
+  - src: ./bluetty.conf.minimal
+    dst: /etc/bluetty/bluetty.conf
+    file_info:
+      mode: 0644
+  - src: ./systemd/bluetty.service
+    dst: /usr/lib/systemd/system/bluetty.service
+    file_info:
+      mode: 0644
+scripts:
+  postinstall: ./packaging/postinstall.sh
+  postremove: ./packaging/postremove.sh
