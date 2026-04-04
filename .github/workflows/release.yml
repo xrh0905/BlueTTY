@@ -31,7 +31,7 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             alias: amd64
             package_arch: amd64
-          - target: aarch64-unknown-linux-gnu
+          - target: aarch64-unknown-linux-musl
             alias: arm64
             package_arch: arm64
     steps:
@@ -47,7 +47,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install aarch64 linker
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        if: matrix.target == 'aarch64-unknown-linux-musl'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross

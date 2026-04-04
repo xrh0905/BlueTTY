@@ -24,9 +24,9 @@ if [[ "$TARGET" == "x86_64-unknown-linux-gnu" ]]; then
   cargo build --release --locked
   BIN_PATH="$TARGET_BASE_DIR/release/$BIN_NAME"
 else
-  if [[ "$TARGET" == "aarch64-unknown-linux-gnu" ]]; then
+  if [[ "$TARGET" == "aarch64-unknown-linux-musl" ]]; then
     if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
-      export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+      export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
     else
       echo "Missing cross linker: aarch64-linux-gnu-gcc" >&2
       echo "Use the GitHub Actions build workflow, or install the cross linker locally." >&2
