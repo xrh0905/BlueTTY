@@ -21,7 +21,7 @@ BlueTTY focuses on stable PTY session delivery, while Bluetooth pairing/authoriz
 3. BlueTTY creates a PTY pair and runs `session.SubcommandTemplate`.
 4. BlueTTY forwards bytes bidirectionally between Bluetooth socket and PTY master.
 
-## v1.0.0 highlights
+## v1.0.1 highlights
 
 - Stable 1.0 release line with amd64 and arm64 release assets.
 - Tag-driven GitHub Release automation.
@@ -81,12 +81,12 @@ scripts/package-artifacts.sh
 
 Standard output names in dist:
 
-- bluetty-1.0.0-linux-amd64
-- bluetty-1.0.0-linux-amd64.deb
-- bluetty-1.0.0-linux-amd64.rpm
-- bluetty-1.0.0-linux-arm64
-- bluetty-1.0.0-linux-arm64.deb
-- bluetty-1.0.0-linux-arm64.rpm
+- bluetty-<version>-linux-amd64
+- bluetty-<version>-linux-amd64.deb
+- bluetty-<version>-linux-amd64.rpm
+- bluetty-<version>-linux-arm64
+- bluetty-<version>-linux-arm64.deb
+- bluetty-<version>-linux-arm64.rpm
 
 ## Run as a service
 
@@ -133,3 +133,7 @@ sudo journalctl -u bluetty.service -f
 - packaging: nfpm manifest and lifecycle hooks
 - systemd: systemd unit
 - .github/workflows: CI/CD automation
+
+## License
+
+This project is licensed under the MIT License. See LICENSE.

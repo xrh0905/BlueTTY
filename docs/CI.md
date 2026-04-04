@@ -13,15 +13,12 @@ This repository uses GitHub Actions workflows under .github/workflows.
 - Trigger: tag push matching v*, plus manual workflow_dispatch
 - Jobs: build + package + GitHub Release asset upload
 
-3. changelog.yml
-- Trigger: tag push matching v*, plus manual workflow_dispatch
-- Job: generate release notes and update CHANGELOG.md using git-cliff
-
 ## Required permissions
 
 - ci.yml: read-only repository access
 - release.yml: contents: write
-- changelog.yml: contents: write
+
+Release notes are generated directly from git history using git-cliff during release workflow execution.
 
 ## Local parity with CI
 

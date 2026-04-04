@@ -6,14 +6,21 @@
 2. Create and push a version tag:
 
 ```bash
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+git tag -a v1.0.1 -m "Release v1.0.1"
+git push origin v1.0.1
 ```
 
 3. GitHub Actions release workflow will:
 - Build amd64 and arm64 artifacts
 - Package deb and rpm outputs
+- Generate release notes from git history via git-cliff
 - Upload assets to GitHub Release
+
+## Changelog policy
+
+- No manual CHANGELOG.md tracking is used.
+- Git history is the source of truth.
+- Release notes are generated automatically by git-cliff in the release workflow.
 
 ## Manual release (workflow_dispatch)
 

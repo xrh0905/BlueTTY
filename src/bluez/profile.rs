@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::os::fd::OwnedFd;
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::Result;
 use zbus::{Connection, Proxy, interface};
 use zbus::zvariant::{ObjectPath, OwnedFd as ZOwnedFd, OwnedValue, Value};
 
