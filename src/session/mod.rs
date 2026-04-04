@@ -3,6 +3,7 @@ mod io_forward;
 mod pty;
 
 use std::collections::HashMap;
+use std::time::Duration;
 use std::os::fd::OwnedFd;
 use std::sync::Arc;
 
@@ -32,6 +33,7 @@ pub struct SessionPeerInfo {
 struct SessionState {
     next_id: u64,
     sessions: HashMap<u64, SessionEntry>,
+    monitor_tasks: Vec<tokio::task::JoinHandle<()>>,
 }
 
 #[derive(Debug)]
@@ -67,6 +69,7 @@ impl SessionManager {
             inner: Arc::new(Mutex::new(SessionState {
                 next_id: 1,
                 sessions: HashMap::new(),
+                monitor_tasks: Vec::new(),
             })),
         }
     }
@@ -130,9 +133,10 @@ impl SessionManager {
         );
 
         let inner = Arc::clone(&self.inner);
-        tokio::spawn(async move {
+        let monitor_task = tokio::spawn(async move {
             monitor_session(inner, id, managed_child, forward_join).await;
         });
+        guard.monitor_tasks.push(monitor_task);
 
         tracing::info!(
             session_id = id,
@@ -147,12 +151,20 @@ impl SessionManager {
     pub async fn shutdown_device(&self, device_path: &str) {
         let mut guard = self.inner.lock().await;
         let mut matched = 0usize;
+        let mut child_pids = Vec::new();
 
         for entry in guard.sessions.values_mut() {
             if entry.device_path == device_path {
                 matched += 1;
-                request_session_shutdown(entry);
+                if let Some(child_pid) = request_session_shutdown(entry) {
+                    child_pids.push(child_pid);
+                }
             }
+        }
+
+        drop(guard);
+        for child_pid in child_pids {
+            terminate_session_child(child_pid, &self.config);
         }
 
         tracing::info!(device = %device_path, matched, "shutdown requested for device sessions");
@@ -160,32 +172,114 @@ impl SessionManager {
 
     pub async fn shutdown_all(&self) {
         let mut guard = self.inner.lock().await;
+        let mut child_pids = Vec::new();
         for session in guard.sessions.values_mut() {
-            request_session_shutdown(session);
+            if let Some(child_pid) = request_session_shutdown(session) {
+                child_pids.push(child_pid);
+            }
             tracing::info!(session_id = session.id, "shutting down session");
+        }
+
+        drop(guard);
+        for child_pid in child_pids {
+            terminate_session_child(child_pid, &self.config);
+        }
+
+        let settle_timeout = Duration::from_millis(self.config.process_group_term_timeout_ms);
+        let settle_deadline = tokio::time::Instant::now() + settle_timeout;
+
+        loop {
+            let remaining = self.inner.lock().await.sessions.len();
+            if remaining == 0 {
+                break;
+            }
+
+            if tokio::time::Instant::now() >= settle_deadline {
+                tracing::warn!(remaining, "session shutdown timed out; escalating to SIGKILL");
+                self.escalate_shutdown_to_kill().await;
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        self.join_monitor_tasks().await;
+    }
+
+    async fn escalate_shutdown_to_kill(&self) {
+        let mut guard = self.inner.lock().await;
+        for entry in guard.sessions.values_mut() {
+            if let Some(child_pid) = entry.child_pid {
+                send_signal_to_process_group_or_pid(child_pid, Signal::SIGKILL);
+            }
+        }
+    }
+
+    async fn join_monitor_tasks(&self) {
+        let tasks = {
+            let mut guard = self.inner.lock().await;
+            guard.monitor_tasks.drain(..).collect::<Vec<_>>()
+        };
+
+        for mut task in tasks {
+            match tokio::time::timeout(Duration::from_secs(1), async { (&mut task).await }).await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    tracing::warn!(error = %err, "monitor task join failed");
+                }
+                Err(_) => {
+                    task.abort();
+                    let _ = task.await;
+                    tracing::warn!("monitor task join timed out and was aborted");
+                }
+            }
         }
     }
 }
 
-fn request_session_shutdown(entry: &mut SessionEntry) {
+fn request_session_shutdown(entry: &mut SessionEntry) -> Option<u32> {
     if entry.lifecycle != SessionLifecycle::Running {
-        return;
+        return None;
     }
 
     entry.lifecycle = SessionLifecycle::ShuttingDown;
     entry.stopper.request_stop();
-    if let Some(child_pid) = entry.child_pid {
-        terminate_session_child(child_pid);
+    entry.child_pid
+}
+
+fn terminate_session_child(child_pid: u32, config: &SessionConfig) {
+    send_signal_to_process_group_or_pid(child_pid, Signal::SIGHUP);
+
+    if config.hup_to_term_delay_ms > 0 {
+        std::thread::sleep(Duration::from_millis(config.hup_to_term_delay_ms));
     }
+
+    send_signal_to_process_group_or_pid(child_pid, Signal::SIGTERM);
 }
 
-fn terminate_session_child(child_pid: u32) {
+fn send_signal_to_process_group_or_pid(child_pid: u32, signal: Signal) {
+    let pgid = unsafe { nix::libc::getpgid(child_pid as nix::libc::pid_t) };
+    if pgid > 0 {
+        let group = Pid::from_raw(-pgid);
+        match kill(group, signal) {
+            Ok(()) => {
+                tracing::info!(child_pid, pgid, ?signal, "sent signal to session process group");
+                return;
+            }
+            Err(Errno::ESRCH) => {}
+            Err(err) => {
+                tracing::warn!(
+                    child_pid,
+                    pgid,
+                    ?signal,
+                    error = %err,
+                    "failed to send signal to session process group"
+                );
+            }
+        }
+    }
+
     let pid = Pid::from_raw(child_pid as i32);
-    send_signal_if_alive(pid, child_pid, Signal::SIGHUP);
-    send_signal_if_alive(pid, child_pid, Signal::SIGTERM);
-}
-
-fn send_signal_if_alive(pid: Pid, child_pid: u32, signal: Signal) {
     match kill(pid, signal) {
         Ok(()) => tracing::info!(child_pid, ?signal, "sent signal to session child"),
         Err(Errno::ESRCH) => {}
@@ -248,7 +342,8 @@ fn terminate_child_for_reason(
     match reason {
         ForwardExitReason::StopRequested | ForwardExitReason::PeerClosed => {
             if child.try_wait()?.is_none() {
-                terminate_session_child(child.id());
+                send_signal_to_process_group_or_pid(child.id(), Signal::SIGHUP);
+                send_signal_to_process_group_or_pid(child.id(), Signal::SIGTERM);
             }
             Ok(())
         }

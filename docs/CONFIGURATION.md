@@ -32,7 +32,8 @@ Pairing, trust management, and authorization prompts are delegated to the native
 
 - Mode: none, getty, exec
 - SubcommandTemplate: shell-like command template to start the session child
-- HupFallback: fallback option when PTY hangup handling is needed
+- HupToTermDelay: milliseconds to wait between SIGHUP and SIGTERM when stopping a managed child
+- ProcessGroupTermTimeout: milliseconds to wait for session shutdown before escalating to SIGKILL
 - MaxSessions: maximum active sessions, 0 means unlimited
 
 Session mode controls process session behavior:
@@ -41,6 +42,7 @@ Session mode controls process session behavior:
 - getty mode: BlueTTY starts child with setsid behavior enabled
 - exec mode: BlueTTY starts child without setsid
 
+When running in managed modes (`getty`/`exec`), BlueTTY sends signals to the child process group first and falls back to the child PID when group lookup fails.
 Template placeholders for SubcommandTemplate:
 
 - {tty}

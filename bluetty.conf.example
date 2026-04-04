@@ -8,5 +8,6 @@ RequireAuthorization=false
 [session]
 Mode=getty
 SubcommandTemplate=/sbin/agetty -8 -s -L --noclear -H {host} --login-program /bin/login {tty} xterm-256color
-HupFallback=false
+HupToTermDelay=150
+ProcessGroupTermTimeout=3000
 MaxSessions=0

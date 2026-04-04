@@ -22,7 +22,8 @@ pub struct BluezConfig {
 pub struct SessionConfig {
     pub mode: SessionMode,
     pub subcommand_template: String,
-    pub hup_fallback: bool,
+    pub hup_to_term_delay_ms: u64,
+    pub process_group_term_timeout_ms: u64,
     pub max_sessions: usize,
 }
 
@@ -48,7 +49,8 @@ impl Default for Config {
                 subcommand_template:
                     "/sbin/agetty -8 -s -L --noclear -H {host} --login-program /bin/login {tty} xterm-256color"
                         .to_string(),
-                hup_fallback: false,
+                hup_to_term_delay_ms: 150,
+                process_group_term_timeout_ms: 3000,
                 max_sessions: 0,
             },
         }
@@ -92,8 +94,15 @@ impl Config {
         if let Some(v) = ini.get("session", "SubcommandTemplate") {
             cfg.session.subcommand_template = v;
         }
-        if let Some(v) = ini.get("session", "HupFallback") {
-            cfg.session.hup_fallback = parse_bool(&v)?;
+        if let Some(v) = ini.get("session", "HupToTermDelay") {
+            cfg.session.hup_to_term_delay_ms = v
+                .parse::<u64>()
+                .with_context(|| format!("invalid session.HupToTermDelay: {v}"))?;
+        }
+        if let Some(v) = ini.get("session", "ProcessGroupTermTimeout") {
+            cfg.session.process_group_term_timeout_ms = v
+                .parse::<u64>()
+                .with_context(|| format!("invalid session.ProcessGroupTermTimeout: {v}"))?;
         }
         if let Some(v) = ini.get("session", "MaxSessions") {
             cfg.session.max_sessions = v
